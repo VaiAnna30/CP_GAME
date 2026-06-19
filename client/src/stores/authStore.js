@@ -13,6 +13,11 @@ const useAuthStore = create((set, get) => ({
     set({ loading: true, error: null });
     try {
       const data = await api.post('/auth/register', { username, email, password });
+      
+      if (!data || !data.token) {
+        throw new Error('Invalid response from server. Please check API configuration.');
+      }
+
       localStorage.setItem('cf_token', data.token);
       localStorage.setItem('cf_user', JSON.stringify(data.user));
       socketService.connect();
@@ -33,6 +38,11 @@ const useAuthStore = create((set, get) => ({
     set({ loading: true, error: null });
     try {
       const data = await api.post('/auth/login', { email, password });
+      
+      if (!data || !data.token) {
+        throw new Error('Invalid response from server. Please check API configuration.');
+      }
+
       localStorage.setItem('cf_token', data.token);
       localStorage.setItem('cf_user', JSON.stringify(data.user));
       socketService.connect();
