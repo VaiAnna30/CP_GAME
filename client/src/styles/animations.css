@@ -1,0 +1,318 @@
+/* ══════════════════════════════════════════════
+   CF Battle Royale — Animations
+   ══════════════════════════════════════════════ */
+
+/* ── Base Animations ─────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ── Spin ────────────────────────────────────── */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Pulse ───────────────────────────────────── */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* ── Shimmer (for skeleton loading) ──────────── */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ── Cell Claim Animation ────────────────────── */
+@keyframes cellClaimRed {
+  0% {
+    transform: scale(0.8) rotateY(90deg);
+    background: transparent;
+  }
+  50% {
+    transform: scale(1.1) rotateY(0deg);
+    background: var(--team-red-muted);
+    box-shadow: var(--shadow-glow-red);
+  }
+  100% {
+    transform: scale(1) rotateY(0deg);
+    background: var(--team-red-muted);
+  }
+}
+
+@keyframes cellClaimBlue {
+  0% {
+    transform: scale(0.8) rotateY(90deg);
+    background: transparent;
+  }
+  50% {
+    transform: scale(1.1) rotateY(0deg);
+    background: var(--team-blue-muted);
+    box-shadow: var(--shadow-glow-blue);
+  }
+  100% {
+    transform: scale(1) rotateY(0deg);
+    background: var(--team-blue-muted);
+  }
+}
+
+.cell-claim-red {
+  animation: cellClaimRed 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.cell-claim-blue {
+  animation: cellClaimBlue 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* ── Winning Line Glow ───────────────────────── */
+@keyframes winGlow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(46, 213, 115, 0.3);
+    border-color: var(--success);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(46, 213, 115, 0.6);
+    border-color: var(--success);
+  }
+}
+
+.cell-winning {
+  animation: winGlow 1.5s ease infinite;
+  border: 2px solid var(--success) !important;
+}
+
+/* ── Board Reveal ────────────────────────────── */
+@keyframes boardReveal {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ── Timer Urgency ───────────────────────────── */
+@keyframes timerUrgent {
+  0%, 100% {
+    color: var(--error);
+    transform: scale(1);
+  }
+  50% {
+    color: var(--team-red);
+    transform: scale(1.05);
+  }
+}
+
+.timer-urgent {
+  animation: timerUrgent 1s ease infinite;
+}
+
+/* ── Float ───────────────────────────────────── */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* ── Glow Pulse ──────────────────────────────── */
+@keyframes glowPulse {
+  0%, 100% {
+    box-shadow: 0 0 10px var(--accent-primary-muted);
+  }
+  50% {
+    box-shadow: 0 0 25px var(--accent-primary-glow);
+  }
+}
+
+/* ── Confetti (simple CSS version) ───────────── */
+@keyframes confettiFall {
+  0% {
+    transform: translateY(-100vh) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+.confetti-piece {
+  position: fixed;
+  width: 10px;
+  height: 10px;
+  top: -10px;
+  z-index: 999;
+  animation: confettiFall 3s ease-in forwards;
+}
+
+/* ── Page Transitions ────────────────────────── */
+.page-enter {
+  animation: fadeIn 0.3s ease, slideUp 0.3s ease;
+}
+
+/* ── Stagger Children ────────────────────────── */
+.stagger-children > * {
+  opacity: 0;
+  animation: slideUp 0.4s ease forwards;
+}
+
+.stagger-children > *:nth-child(1) { animation-delay: 0.05s; }
+.stagger-children > *:nth-child(2) { animation-delay: 0.1s; }
+.stagger-children > *:nth-child(3) { animation-delay: 0.15s; }
+.stagger-children > *:nth-child(4) { animation-delay: 0.2s; }
+.stagger-children > *:nth-child(5) { animation-delay: 0.25s; }
+.stagger-children > *:nth-child(6) { animation-delay: 0.3s; }
+.stagger-children > *:nth-child(7) { animation-delay: 0.35s; }
+.stagger-children > *:nth-child(8) { animation-delay: 0.4s; }
+.stagger-children > *:nth-child(9) { animation-delay: 0.45s; }
+
+/* ── Hover Effects ───────────────────────────── */
+.hover-lift {
+  transition: transform var(--transition-base), box-shadow var(--transition-base);
+}
+.hover-lift:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+}
+
+.hover-glow {
+  transition: box-shadow var(--transition-base);
+}
+.hover-glow:hover {
+  box-shadow: var(--shadow-glow-cyan);
+}
+
+/* ── Live Indicator ──────────────────────────── */
+.live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  background: var(--error-muted);
+  border-radius: var(--radius-full);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  color: var(--error);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.live-indicator::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  background: var(--error);
+  border-radius: 50%;
+  animation: pulse 1.5s ease infinite;
+}
+
+/* ── Count Up ────────────────────────────────── */
+@keyframes countUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Gradient Border ─────────────────────────── */
+.gradient-border {
+  position: relative;
+}
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, var(--accent-primary), var(--team-blue), var(--team-red));
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ── Reduced Motion ──────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
