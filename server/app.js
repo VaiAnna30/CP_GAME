@@ -36,6 +36,11 @@ app.use('/api/teams', teamRoutes);
 app.use('/api/matches', matchRoutes);
 app.use('/api/problems', problemRoutes);
 
+// Root route
+app.get('/', (req, res) => {
+  res.send('CF Battle Royale API is running.');
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({
