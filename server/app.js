@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 const env = require('./config/env');
 const errorHandler = require('./middleware/errorHandler');
@@ -36,10 +37,10 @@ app.use('/api/teams', teamRoutes);
 app.use('/api/matches', matchRoutes);
 app.use('/api/problems', problemRoutes);
 
-// Root route
-app.get('/', (req, res) => {
-  res.send('CF Battle Royale API is running.');
-});
+// Serve static files from the React frontend app
+if (env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../client/dist')));
+}
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -53,5 +54,12 @@ app.get('/api/health', (req, res) => {
 
 // Error handler (must be last)
 app.use(errorHandler);
+
+// Catch-all route to serve React app for unhandled GET requests
+if (env.NODE_ENV === 'production') {
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+  });
+}
 
 module.exports = app;
