@@ -129,9 +129,9 @@ router.post('/verify-cf', auth, async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'This CF handle is already linked to another account' });
     }
 
-    // Set verification problem (use a well-known problem)
-    // The user needs to submit a compile-error solution to this problem
-    const verificationProblem = '4/A'; // Watermelon — very popular, easy to find
+    // Set verification problem to a random popular problem to act as an OTP
+    const popularProblems = ['4/A', '71/A', '158/A', '231/A', '112/A', '282/A', '50/A', '236/A', '339/A', '266/A'];
+    const verificationProblem = popularProblems[Math.floor(Math.random() * popularProblems.length)];
 
     await User.findByIdAndUpdate(req.user._id, {
       cfHandle: cfHandle.toLowerCase(),
@@ -165,10 +165,13 @@ router.post('/confirm-cf', auth, async (req, res, next) => {
     }
 
     const [contestId, index] = user.cfVerificationProblem.split('/');
+    const minTimestamp = Math.floor(user.updatedAt.getTime() / 1000) - 60; // 60s buffer for clock drift
+    
     const submission = await cfApi.checkVerificationSubmission(
       user.cfHandle,
       parseInt(contestId),
-      index
+      index,
+      minTimestamp
     );
 
     if (!submission) {

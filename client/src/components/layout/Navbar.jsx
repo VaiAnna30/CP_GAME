@@ -40,14 +40,8 @@ export default function Navbar() {
             <Link to="/dashboard" className={`nav-link ${location.pathname === '/dashboard' ? 'active' : ''}`}>
               Dashboard
             </Link>
-            <Link to="/teams" className={`nav-link ${location.pathname === '/teams' ? 'active' : ''}`}>
-              Teams
-            </Link>
             <Link to="/lobby" className={`nav-link ${location.pathname === '/lobby' ? 'active' : ''}`}>
               Play
-            </Link>
-            <Link to="/leaderboard" className={`nav-link ${location.pathname === '/leaderboard' ? 'active' : ''}`}>
-              Leaderboard
             </Link>
           </div>
         )}
@@ -55,14 +49,14 @@ export default function Navbar() {
         <div className="navbar-right">
           {isAuthenticated ? (
             <div className="navbar-user">
-              <Link to="/profile" className="navbar-profile">
+              <div className="navbar-profile">
                 <div className="avatar avatar-sm">
                   <span className="avatar-initials">
                     {user?.username?.[0]?.toUpperCase() || '?'}
                   </span>
                 </div>
                 <span className="navbar-username">{user?.username}</span>
-              </Link>
+              </div>
               {user?.cfHandle && (
                 <span className="navbar-cf-handle">
                   {user.cfHandle}
@@ -97,10 +91,7 @@ export default function Navbar() {
           {isAuthenticated ? (
             <>
               <Link to="/dashboard" className="mobile-link">Dashboard</Link>
-              <Link to="/teams" className="mobile-link">Teams</Link>
               <Link to="/lobby" className="mobile-link">Play</Link>
-              <Link to="/leaderboard" className="mobile-link">Leaderboard</Link>
-              <Link to="/profile" className="mobile-link">Profile</Link>
               <button className="btn btn-ghost w-full" onClick={handleLogout}>Logout</button>
             </>
           ) : (

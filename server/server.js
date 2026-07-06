@@ -10,6 +10,15 @@ const startServer = async () => {
   // Connect to MongoDB
   await connectDB();
 
+  // Drop stale unique index on Team.inviteCode left over from old schema
+  try {
+    const mongoose = require('mongoose');
+    await mongoose.connection.collection('teams').dropIndex('inviteCode_1');
+    console.log('Dropped stale inviteCode_1 index');
+  } catch (e) {
+    // Index doesn't exist, that's fine
+  }
+
   // Create HTTP server
   const server = http.createServer(app);
 

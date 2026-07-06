@@ -1,13 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../stores/authStore';
-import useTeamStore from '../stores/teamStore';
 import useMatchStore from '../stores/matchStore';
 import './Lobby.css';
 
 export default function Lobby() {
   const { user } = useAuthStore();
-  const { teams, fetchMyTeams } = useTeamStore();
   const { matches, fetchMatches, createMatch, joinMatch, loading } = useMatchStore();
   const navigate = useNavigate();
 
@@ -20,7 +18,6 @@ export default function Lobby() {
   const [createError, setCreateError] = useState('');
 
   useEffect(() => {
-    fetchMyTeams();
     fetchMatches('waiting');
     const interval = setInterval(() => fetchMatches('waiting'), 10000);
     return () => clearInterval(interval);
@@ -28,12 +25,8 @@ export default function Lobby() {
 
   const handleCreate = async () => {
     setCreateError('');
-    if (!selectedTeam) {
-      setCreateError('Select a team first');
-      return;
-    }
     try {
-      const match = await createMatch(selectedTeam, gridSize, {
+      const match = await createMatch(null, gridSize, {
         difficultyRange: { min: minRating, max: maxRating },
         timeLimitMinutes: timeLimit,
       });
@@ -44,12 +37,8 @@ export default function Lobby() {
   };
 
   const handleJoin = async (matchId) => {
-    if (!selectedTeam) {
-      alert('Select a team first from the "Create Match" panel');
-      return;
-    }
     try {
-      await joinMatch(matchId, selectedTeam);
+      await joinMatch(matchId, null);
       navigate(`/match/${matchId}`);
     } catch (err) {
       alert(err.message);
@@ -78,15 +67,7 @@ export default function Lobby() {
             {createError && <div className="auth-error"> {createError}</div>}
 
             <div className="create-match-grid">
-              <div className="form-group">
-                <label className="form-label">Select Team</label>
-                <select className="form-input" value={selectedTeam} onChange={(e) => setSelectedTeam(e.target.value)}>
-                  <option value="">Choose a team...</option>
-                  {teams.map((t) => (
-                    <option key={t._id} value={t._id}>[{t.tag}] {t.name}</option>
-                  ))}
-                </select>
-              </div>
+
 
               <div className="form-group">
                 <label className="form-label">Grid Size</label>
@@ -119,18 +100,7 @@ export default function Lobby() {
           </div>
         )}
 
-        {/* Team Selection for Joining */}
-        {!showCreate && teams.length > 0 && (
-          <div className="team-select-bar">
-            <span className="text-secondary">Playing as:</span>
-            <select className="form-input" value={selectedTeam} onChange={(e) => setSelectedTeam(e.target.value)} style={{ width: 'auto' }}>
-              <option value="">Select team to join...</option>
-              {teams.map((t) => (
-                <option key={t._id} value={t._id}>[{t.tag}] {t.name}</option>
-              ))}
-            </select>
-          </div>
-        )}
+
 
         {/* Open Matches */}
         <div className="lobby-section">
@@ -177,8 +147,8 @@ export default function Lobby() {
                     </div>
                   </div>
 
-                  <button className="btn btn-blue w-full" onClick={() => handleJoin(match._id)} disabled={!selectedTeam}>
-                    {selectedTeam ? 'Join Match' : 'Select team first'}
+                  <button className="btn btn-blue w-full" onClick={() => handleJoin(match._id)}>
+                    Join Match
                   </button>
                 </div>
               ))}

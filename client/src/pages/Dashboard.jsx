@@ -1,14 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useAuthStore from '../stores/authStore';
-import useTeamStore from '../stores/teamStore';
 import useMatchStore from '../stores/matchStore';
 import api from '../services/api';
 import './Dashboard.css';
 
 export default function Dashboard() {
   const { user } = useAuthStore();
-  const { teams, fetchMyTeams } = useTeamStore();
   const { matches, fetchMatches } = useMatchStore();
   const [cfVerifying, setCfVerifying] = useState(false);
   const [cfHandle, setCfHandle] = useState('');
@@ -18,7 +16,6 @@ export default function Dashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchMyTeams();
     fetchMatches();
     loadRecentMatches();
   }, []);
@@ -77,7 +74,7 @@ export default function Dashboard() {
           <div className="card dashboard-stats">
             <div className="card-header">
               <span className="card-title">Your Stats</span>
-              <Link to="/profile" className="btn btn-ghost btn-sm">View Profile →</Link>
+              <span className="text-secondary text-sm">Your Stats</span>
             </div>
             <div className="stats-row">
               <div className="stat-box">
@@ -92,10 +89,7 @@ export default function Dashboard() {
                 <span className="stat-value">{user?.stats?.totalSolves || 0}</span>
                 <span className="stat-label">Solves</span>
               </div>
-              <div className="stat-box">
-                <span className="stat-value mono">{user?.stats?.eloRating || 1200}</span>
-                <span className="stat-label">ELO Rating</span>
-              </div>
+
             </div>
           </div>
 
@@ -177,33 +171,7 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* My Teams */}
-          <div className="card">
-            <div className="card-header">
-              <span className="card-title">My Teams</span>
-              <Link to="/teams" className="btn btn-ghost btn-sm">Manage →</Link>
-            </div>
-            {teams.length === 0 ? (
-              <div className="empty-state-mini">
-                <p className="text-secondary">No teams yet</p>
-                <Link to="/teams" className="btn btn-secondary btn-sm">Create a Team</Link>
-              </div>
-            ) : (
-              <div className="team-list">
-                {teams.slice(0, 3).map((team) => (
-                  <div key={team._id} className="team-row">
-                    <div className="team-info">
-                      <span className="team-tag badge badge-primary">[{team.tag}]</span>
-                      <span className="font-semibold">{team.name}</span>
-                    </div>
-                    <span className="text-secondary text-sm">
-                      {team.members?.length || 0} members
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+
 
           {/* Open Matches */}
           <div className="card">

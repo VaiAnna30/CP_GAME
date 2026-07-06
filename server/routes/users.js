@@ -9,8 +9,7 @@ const auth = require('../middleware/auth');
 router.get('/:id', auth, async (req, res, next) => {
   try {
     const user = await User.findById(req.params.id)
-      .select('-passwordHash')
-      .populate('teams', 'name tag');
+      .select('-passwordHash');
 
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });

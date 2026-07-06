@@ -112,13 +112,14 @@ const cfApi = {
    * @param {number} contestId
    * @param {string} problemIndex
    */
-  async checkVerificationSubmission(handle, contestId, problemIndex) {
+  async checkVerificationSubmission(handle, contestId, problemIndex, minTimestampSeconds) {
     const submissions = await this.getUserSubmissions(handle, 1, 50);
     return submissions.find(
       (s) =>
         s.problem.contestId === contestId &&
         s.problem.index === problemIndex &&
-        s.verdict === 'COMPILATION_ERROR'
+        s.verdict === 'COMPILATION_ERROR' &&
+        s.creationTimeSeconds >= minTimestampSeconds
     );
   },
 };

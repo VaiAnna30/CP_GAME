@@ -8,7 +8,6 @@ const { apiLimiter, authLimiter } = require('./middleware/rateLimiter');
 // Import routes
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
-const teamRoutes = require('./routes/teams');
 const matchRoutes = require('./routes/matches');
 const problemRoutes = require('./routes/problems');
 
@@ -33,7 +32,6 @@ app.use('/api/auth', authLimiter);
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/teams', teamRoutes);
 app.use('/api/matches', matchRoutes);
 app.use('/api/problems', problemRoutes);
 

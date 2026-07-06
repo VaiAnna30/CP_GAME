@@ -232,12 +232,13 @@ export default function Match() {
             {currentMatch.board?.map((cell, idx) => {
               const claimed = cell.claimedBy;
               const winning = isWinningCell(cell.row, cell.col);
+              const isMatchActive = currentMatch.status === 'in_progress' || currentMatch.status === 'completed';
 
               return (
                 <a
                   key={idx}
-                  href={cell.problem?.url}
-                  target="_blank"
+                  href={isMatchActive ? cell.problem?.url : '#'}
+                  target={isMatchActive ? "_blank" : "_self"}
                   rel="noopener noreferrer"
                   className={`
                     game-cell
@@ -246,20 +247,22 @@ export default function Match() {
                     ${claimed === 'blue' ? 'cell-claim-blue' : ''}
                     ${winning ? 'cell-winning' : ''}
                   `}
-                  style={{ animationDelay: `${idx * 0.05}s` }}
+                  style={{ animationDelay: `${idx * 0.05}s`, cursor: isMatchActive ? 'pointer' : 'default' }}
+                  onClick={(e) => { if (!isMatchActive) e.preventDefault(); }}
                 >
                   <div className="cell-rating">
-                    <span className={`badge badge-rating ${getRatingBadgeClass(cell.problem?.rating)}`}>
-                      {cell.problem?.rating || '?'}
+                    <span className={`badge badge-rating ${isMatchActive ? getRatingBadgeClass(cell.problem?.rating) : ''}`}>
+                      {isMatchActive ? (cell.problem?.rating || '?') : '???'}
                     </span>
                   </div>
                   <div className="cell-problem-name">
-                    {cell.problem?.name?.length > 25
+                    {!isMatchActive ? 'Hidden Problem' :
+                      cell.problem?.name?.length > 25
                       ? cell.problem.name.substring(0, 22) + '...'
                       : cell.problem?.name}
                   </div>
                   <div className="cell-problem-id mono">
-                    {cell.problem?.contestId}{cell.problem?.index}
+                    {isMatchActive ? `${cell.problem?.contestId}${cell.problem?.index}` : 'HIDDEN'}
                   </div>
                   {claimed && (
                     <div className={`cell-mark ${claimed === 'red' ? 'mark-red' : 'mark-blue'}`}>
@@ -376,8 +379,8 @@ export default function Match() {
                 <button className="btn btn-primary" onClick={() => navigate('/lobby')}>
                   Play Again
                 </button>
-                <button className="btn btn-secondary" onClick={() => setShowResult(false)}>
-                  View Board
+                <button className="btn btn-secondary" onClick={() => navigate('/')}>
+                  Home
                 </button>
               </div>
             </div>

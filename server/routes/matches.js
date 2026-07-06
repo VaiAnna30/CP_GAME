@@ -12,25 +12,16 @@ router.post('/', auth, async (req, res, next) => {
   try {
     const { teamId, gridSize, settings } = req.body;
 
-    if (!teamId) {
-      return res.status(400).json({ success: false, message: 'Team ID is required' });
+    const user = await User.findById(req.user._id);
+    if (!user.cfHandleVerified) {
+      return res.status(400).json({ success: false, message: 'You must have a verified Codeforces handle' });
     }
-
-    const team = await Team.findById(teamId).populate('members', 'cfHandle cfHandleVerified');
+    let team = await Team.findOne({ name: user.username });
     if (!team) {
-      return res.status(404).json({ success: false, message: 'Team not found' });
-    }
-
-    if (!team.members.find((m) => m._id.toString() === req.user._id.toString())) {
-      return res.status(403).json({ success: false, message: 'You are not a member of this team' });
-    }
-
-    // Verify all team members have verified CF handles
-    const unverified = team.members.filter((m) => !m.cfHandleVerified);
-    if (unverified.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'All team members must have verified Codeforces handles',
+      team = await Team.create({
+        name: user.username,
+        tag: user.username.substring(0, 4).toUpperCase() || 'PLYR',
+        members: [user._id]
       });
     }
 
@@ -50,7 +41,7 @@ router.post('/', auth, async (req, res, next) => {
           teamId: team._id,
           teamName: team.name,
           teamTag: team.tag,
-          players: team.members.map((m) => m._id),
+          players: team.members.map((m) => m._id || m),
           color: 'red',
           ready: false,
         },
@@ -124,12 +115,6 @@ router.get('/:id', auth, async (req, res, next) => {
 // @desc    Join a match with your team
 router.post('/:id/join', auth, async (req, res, next) => {
   try {
-    const { teamId } = req.body;
-
-    if (!teamId) {
-      return res.status(400).json({ success: false, message: 'Team ID is required' });
-    }
-
     const match = await Match.findById(req.params.id);
     if (!match) {
       return res.status(404).json({ success: false, message: 'Match not found' });
@@ -144,24 +129,20 @@ router.post('/:id/join', auth, async (req, res, next) => {
     }
 
     // Can't join your own match
-    if (match.teams[0].teamId.toString() === teamId) {
+    if (match.teams[0].players.some(p => p.toString() === req.user._id.toString())) {
       return res.status(400).json({ success: false, message: 'Cannot join your own match' });
     }
 
-    const team = await Team.findById(teamId).populate('members', 'cfHandle cfHandleVerified');
+    const user = await User.findById(req.user._id);
+    if (!user.cfHandleVerified) {
+      return res.status(400).json({ success: false, message: 'You must have a verified Codeforces handle' });
+    }
+    let team = await Team.findOne({ name: user.username });
     if (!team) {
-      return res.status(404).json({ success: false, message: 'Team not found' });
-    }
-
-    if (!team.members.find((m) => m._id.toString() === req.user._id.toString())) {
-      return res.status(403).json({ success: false, message: 'You are not a member of this team' });
-    }
-
-    const unverified = team.members.filter((m) => !m.cfHandleVerified);
-    if (unverified.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'All team members must have verified Codeforces handles',
+      team = await Team.create({
+        name: user.username,
+        tag: user.username.substring(0, 4).toUpperCase() || 'PLYR',
+        members: [user._id]
       });
     }
 
@@ -169,7 +150,7 @@ router.post('/:id/join', auth, async (req, res, next) => {
       teamId: team._id,
       teamName: team.name,
       teamTag: team.tag,
-      players: team.members.map((m) => m._id),
+      players: team.members.map((m) => m._id || m),
       color: 'blue',
       ready: false,
     });
