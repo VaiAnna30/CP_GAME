@@ -3,8 +3,6 @@ const router = express.Router();
 const auth = require('../middleware/auth');
 const cfApi = require('../services/cfApi');
 
-// @route   GET /api/problems
-// @desc    Get problems from CF API (cached)
 router.get('/', auth, async (req, res, next) => {
   try {
     const { tags, minRating, maxRating, page = 1, limit = 50 } = req.query;

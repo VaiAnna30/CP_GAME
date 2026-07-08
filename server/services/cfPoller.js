@@ -3,21 +3,13 @@ const matchEngine = require('./matchEngine');
 const Match = require('../models/Match');
 const User = require('../models/User');
 
-/**
- * CF Poller — The heart of the project
- * Polls Codeforces user.status for each player in active matches
- * to detect accepted submissions matching board problems.
- */
 class CFPoller {
   constructor(io) {
     this.io = io;
     this.activePolls = new Map(); // matchId -> intervalId
-    this.pollInterval = parseInt(process.env.CF_POLL_INTERVAL) || 4000;
+    this.pollInterval = parseInt(process.env.CF_POLL_INTERVAL, 10) || 4000;
   }
 
-  /**
-   * Start polling for a specific match
-   */
   startPolling(matchId) {
     if (this.activePolls.has(matchId)) {
       console.log(`Already polling match ${matchId}`);
@@ -37,9 +29,6 @@ class CFPoller {
     this.activePolls.set(matchId, intervalId);
   }
 
-  /**
-   * Stop polling for a match
-   */
   stopPolling(matchId) {
     const intervalId = this.activePolls.get(matchId);
     if (intervalId) {
@@ -49,9 +38,6 @@ class CFPoller {
     }
   }
 
-  /**
-   * Stop all polling (for shutdown)
-   */
   stopAll() {
     for (const [matchId, intervalId] of this.activePolls) {
       clearInterval(intervalId);
@@ -60,106 +46,120 @@ class CFPoller {
     console.log('All polling stopped');
   }
 
-  /**
-   * Core polling logic for a single match
-   */
   async _pollMatch(matchId) {
     const match = await Match.findById(matchId);
+
+    // Stop polling if match no longer exists or isn't active
     if (!match || match.status !== 'in_progress') {
       this.stopPolling(matchId);
       return;
     }
 
-    // Check for time limit
-    if (match.settings.timeLimitMinutes && match.startedAt) {
-      const elapsed = (Date.now() - new Date(match.startedAt).getTime()) / 1000 / 60;
-      if (elapsed >= match.settings.timeLimitMinutes) {
-        await this._handleTimeout(match);
-        return;
-      }
+    // Check if the match time limit has been reached
+    if (this._hasMatchTimedOut(match)) {
+      await this._handleTimeout(match);
+      return;
     }
 
-    // Get all unclaimed cells
-    const unclaimedCells = match.board.filter((c) => !c.claimedBy);
-    if (unclaimedCells.length === 0) {
+    // Identify which cells on the board are still unclaimed
+    const problemMap = this._getUnclaimedProblemsMap(match.board);
+
+    // Stop polling if there are no more cells to claim
+    if (problemMap.size === 0) {
       this.stopPolling(matchId);
       return;
     }
 
-    // Build a map of problem keys to board positions
+    const matchStartTimeSeconds = Math.floor(new Date(match.startedAt).getTime() / 1000);
+
+    // Check submissions for all players in the match
+    for (const team of match.teams) {
+      for (const playerId of team.players) {
+        await this._processPlayerSubmissions(
+          match,
+          team,
+          playerId,
+          problemMap,
+          matchStartTimeSeconds
+        );
+      }
+    }
+  }
+
+  _hasMatchTimedOut(match) {
+    if (!match.settings.timeLimitMinutes || !match.startedAt) return false;
+
+    const elapsedMinutes = (Date.now() - new Date(match.startedAt).getTime()) / 1000 / 60;
+    return elapsedMinutes >= match.settings.timeLimitMinutes;
+  }
+
+  _getUnclaimedProblemsMap(board) {
     const problemMap = new Map();
+    const unclaimedCells = board.filter(cell => !cell.claimedBy);
+
     for (const cell of unclaimedCells) {
       const key = `${cell.problem.contestId}-${cell.problem.index}`;
       problemMap.set(key, cell);
     }
 
-    // Check submissions for all players across both teams
-    for (const team of match.teams) {
-      for (const playerId of team.players) {
-        try {
-          const user = await User.findById(playerId);
-          if (!user || !user.cfHandle) continue;
+    return problemMap;
+  }
 
-          const submissions = await cfApi.getUserSubmissions(user.cfHandle, 1, 20);
-          if (!submissions || !Array.isArray(submissions)) continue;
+  async _processPlayerSubmissions(match, team, playerId, problemMap, matchStartTimeSeconds) {
+    try {
+      const user = await User.findById(playerId);
+      if (!user || !user.cfHandle) return;
 
-          // Filter for AC submissions after match start
-          const matchStartTime = Math.floor(new Date(match.startedAt).getTime() / 1000);
+      // Fetch the last 20 submissions for the user
+      const submissions = await cfApi.getUserSubmissions(user.cfHandle, 1, 20);
+      if (!submissions || !Array.isArray(submissions)) return;
 
-          for (const sub of submissions) {
-            if (sub.verdict !== 'OK') continue;
-            if (sub.creationTimeSeconds < matchStartTime) continue;
+      for (const sub of submissions) {
+        // Only care about Accepted submissions made after the match started
+        if (sub.verdict !== 'OK') continue;
+        if (sub.creationTimeSeconds < matchStartTimeSeconds) continue;
 
-            const problemKey = `${sub.problem.contestId}-${sub.problem.index}`;
-            const cell = problemMap.get(problemKey);
+        const problemKey = `${sub.problem.contestId}-${sub.problem.index}`;
+        const cell = problemMap.get(problemKey);
 
-            if (cell) {
-              // Cell is unclaimed and this submission solves it!
-              await this._claimCell(
-                match,
-                cell,
-                team.color,
-                playerId,
-                new Date(sub.creationTimeSeconds * 1000),
-                sub.id
-              );
+        if (cell) {
+          // Found a valid solution for an unclaimed cell!
+          await this._claimCell(
+            match,
+            cell,
+            team.color,
+            playerId,
+            new Date(sub.creationTimeSeconds * 1000),
+            sub.id
+          );
 
-              // Remove from unclaimed map so other players don't re-claim
-              problemMap.delete(problemKey);
-            }
-          }
-        } catch (error) {
-          // Log but don't crash — CF might be temporarily down
-          console.warn(`Failed to poll submissions for player ${playerId}:`, error.message);
+          // Prevent double-claiming in the same poll cycle
+          problemMap.delete(problemKey);
         }
       }
+    } catch (error) {
+      console.warn(`Failed to poll submissions for player ${playerId}:`, error.message);
     }
   }
 
-  /**
-   * Claim a cell for a team
-   */
   async _claimCell(match, cell, color, userId, claimTime, submissionId) {
-    // Reload match to get latest state (avoid race conditions)
+    // Reload match to avoid race conditions and get the latest board state
     const freshMatch = await Match.findById(match._id);
-    const boardCell = freshMatch.board.find(
-      (c) => c.row === cell.row && c.col === cell.col
-    );
+    const boardCell = freshMatch.board.find(c => c.row === cell.row && c.col === cell.col);
 
-    // Double-check: cell might have been claimed by another poll cycle
-    if (boardCell.claimedBy) return;
+    if (boardCell.claimedBy) return; // Double-check it wasn't claimed
 
-    // Update cell
+    // Update the cell
     boardCell.claimedBy = color;
     boardCell.claimedByUser = userId;
     boardCell.claimTime = claimTime;
     boardCell.submissionId = submissionId;
 
-    // Update team cell count
-    const team = freshMatch.teams.find((t) => t.color === color);
+    // Increment team's claimed count
+    const team = freshMatch.teams.find(t => t.color === color);
     if (team) team.cellsClaimed = (team.cellsClaimed || 0) + 1;
 
-    // Add event
+    // Log the event
     freshMatch.events.push({
       type: 'cell_claimed',
       data: {
@@ -175,12 +175,8 @@ class CFPoller {
       timestamp: new Date(),
     });
 
-    // Evaluate match state
-    const result = matchEngine.evaluateMatch(
-      freshMatch.board,
-      freshMatch.gridSize,
-      freshMatch.startedAt
-    );
+    // Check if this claim wins the game
+    const result = matchEngine.evaluateMatch(freshMatch.board, freshMatch.gridSize, freshMatch.startedAt);
 
     if (result.finished) {
       freshMatch.status = 'completed';
@@ -201,10 +197,8 @@ class CFPoller {
 
     await freshMatch.save();
 
-    // Get user info for the activity feed
+    // Emit real-time events to players
     const user = await User.findById(userId);
-
-    // Emit real-time events
     this.io.to(`match_${match._id}`).emit('cell_claimed', {
       row: cell.row,
       col: cell.col,
@@ -219,26 +213,19 @@ class CFPoller {
     });
 
     if (result.finished) {
-      // Update player stats
       await this._updateStats(freshMatch);
-
       this.io.to(`match_${match._id}`).emit('match_ended', {
         winner: result.winner,
         condition: result.condition,
         winningLine: result.winningLine,
       });
-
       this.stopPolling(match._id.toString());
     }
 
-    console.log(
-      `Cell [${cell.row},${cell.col}] claimed by ${color} (${user?.cfHandle}) in match ${match._id}`
-    );
+    console.log(`Cell [${cell.row},${cell.col}] claimed by ${color} (${user?.cfHandle}) in match ${match._id}`);
   }
 
-  /**
-   * Handle match timeout
-   */
+
   async _handleTimeout(match) {
     const result = matchEngine.resolveTiebreak(match.board, match.startedAt);
 
@@ -254,7 +241,6 @@ class CFPoller {
     });
 
     await match.save();
-
     await this._updateStats(match);
 
     this.io.to(`match_${match._id}`).emit('match_ended', {
@@ -266,16 +252,14 @@ class CFPoller {
     this.stopPolling(match._id.toString());
   }
 
-  /**
-   * Update player and team stats after match
-   */
   async _updateStats(match) {
     try {
+      const Team = require('../models/Team');
+
       for (const team of match.teams) {
         const isWinner = team.color === match.winner;
 
-        // Update team stats
-        const Team = require('../models/Team');
+        // Update Team stats
         await Team.findByIdAndUpdate(team.teamId, {
           $inc: {
             'stats.matchesPlayed': 1,
@@ -286,10 +270,10 @@ class CFPoller {
           },
         });
 
-        // Update player stats
+        // Update each player's individual stats
         for (const playerId of team.players) {
           const solves = match.board.filter(
-            (c) => c.claimedByUser && c.claimedByUser.toString() === playerId.toString()
+            c => c.claimedByUser && c.claimedByUser.toString() === playerId.toString()
           );
 
           await User.findByIdAndUpdate(playerId, {

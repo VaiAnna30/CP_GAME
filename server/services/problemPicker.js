@@ -2,12 +2,6 @@ const cfApi = require('./cfApi');
 const cache = require('./cache');
 
 const problemPicker = {
-  /**
-   * Generate a board of problems for a match
-   * @param {number} gridSize - e.g., 3 for 3x3
-   * @param {object} settings - { difficultyRange: { min, max }, allowedTags }
-   * @returns {Array} board cells with problems assigned
-   */
   async generateBoard(gridSize, settings = {}) {
     const { difficultyRange = { min: 800, max: 1800 }, allowedTags = [] } = settings;
 

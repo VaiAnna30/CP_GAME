@@ -6,16 +6,18 @@ const User = require('../models/User');
 const auth = require('../middleware/auth');
 const problemPicker = require('../services/problemPicker');
 
-// @route   POST /api/matches
-// @desc    Create a new match lobby
+
 router.post('/', auth, async (req, res, next) => {
   try {
     const { teamId, gridSize, settings } = req.body;
-
     const user = await User.findById(req.user._id);
+
+    // 1. Verify User Codeforces Handle
     if (!user.cfHandleVerified) {
       return res.status(400).json({ success: false, message: 'You must have a verified Codeforces handle' });
     }
+
+    // 2. Fetch or Create Team for User
     let team = await Team.findOne({ name: user.username });
     if (!team) {
       team = await Team.create({
@@ -25,15 +27,15 @@ router.post('/', auth, async (req, res, next) => {
       });
     }
 
-    // Generate board
+    // 3. Setup Match Settings and Generate Board
     const matchSettings = {
       difficultyRange: settings?.difficultyRange || { min: 800, max: 1800 },
       timeLimitMinutes: settings?.timeLimitMinutes || 60,
       allowedTags: settings?.allowedTags || [],
     };
-
     const board = await problemPicker.generateBoard(gridSize || 3, matchSettings);
 
+    // 4. Create the Match Lobby
     const match = await Match.create({
       gridSize: gridSize || 3,
       teams: [
@@ -41,7 +43,7 @@ router.post('/', auth, async (req, res, next) => {
           teamId: team._id,
           teamName: team.name,
           teamTag: team.tag,
-          players: team.members.map((m) => m._id || m),
+          players: team.members.map(m => m._id || m),
           color: 'red',
           ready: false,
         },
@@ -57,28 +59,25 @@ router.post('/', auth, async (req, res, next) => {
       ],
     });
 
-    const populated = await Match.findById(match._id)
+    // 5. Populate and Return Match
+    const populatedMatch = await Match.findById(match._id)
       .populate('teams.teamId', 'name tag')
       .populate('teams.players', 'username cfHandle cfProfile');
 
-    res.status(201).json({ success: true, match: populated });
+    res.status(201).json({ success: true, match: populatedMatch });
   } catch (error) {
     next(error);
   }
 });
 
-// @route   GET /api/matches
-// @desc    List open/active match lobbies
 router.get('/', auth, async (req, res, next) => {
   try {
     const { status } = req.query;
-    const filter = {};
 
-    if (status) {
-      filter.status = status;
-    } else {
-      filter.status = { $in: ['waiting', 'ready', 'in_progress'] };
-    }
+    // Default to active statuses if none provided
+    const filter = {
+      status: status || { $in: ['waiting', 'ready', 'in_progress'] }
+    };
 
     const matches = await Match.find(filter)
       .sort({ createdAt: -1 })
@@ -92,8 +91,7 @@ router.get('/', auth, async (req, res, next) => {
   }
 });
 
-// @route   GET /api/matches/:id
-// @desc    Get match state
+
 router.get('/:id', auth, async (req, res, next) => {
   try {
     const match = await Match.findById(req.params.id)
@@ -111,32 +109,29 @@ router.get('/:id', auth, async (req, res, next) => {
   }
 });
 
-// @route   POST /api/matches/:id/join
-// @desc    Join a match with your team
+
 router.post('/:id/join', auth, async (req, res, next) => {
   try {
     const match = await Match.findById(req.params.id);
-    if (!match) {
-      return res.status(404).json({ success: false, message: 'Match not found' });
-    }
 
-    if (match.status !== 'waiting') {
-      return res.status(400).json({ success: false, message: 'Match is not open for joining' });
-    }
+    // 1. Validate Match State
+    if (!match) return res.status(404).json({ success: false, message: 'Match not found' });
+    if (match.status !== 'waiting') return res.status(400).json({ success: false, message: 'Match is not open for joining' });
+    if (match.teams.length >= 2) return res.status(400).json({ success: false, message: 'Match already has two teams' });
 
-    if (match.teams.length >= 2) {
-      return res.status(400).json({ success: false, message: 'Match already has two teams' });
-    }
-
-    // Can't join your own match
-    if (match.teams[0].players.some(p => p.toString() === req.user._id.toString())) {
+    // 2. Prevent joining own match
+    const isAlreadyInMatch = match.teams[0].players.some(p => p.toString() === req.user._id.toString());
+    if (isAlreadyInMatch) {
       return res.status(400).json({ success: false, message: 'Cannot join your own match' });
     }
 
+    // 3. Verify User Codeforces Handle
     const user = await User.findById(req.user._id);
     if (!user.cfHandleVerified) {
       return res.status(400).json({ success: false, message: 'You must have a verified Codeforces handle' });
     }
+
+    // 4. Fetch or Create Team for joining User
     let team = await Team.findOne({ name: user.username });
     if (!team) {
       team = await Team.create({
@@ -146,15 +141,15 @@ router.post('/:id/join', auth, async (req, res, next) => {
       });
     }
 
+    // 5. Add Team to Match
     match.teams.push({
       teamId: team._id,
       teamName: team.name,
       teamTag: team.tag,
-      players: team.members.map((m) => m._id || m),
+      players: team.members.map(m => m._id || m),
       color: 'blue',
       ready: false,
     });
-
     match.status = 'ready';
     match.events.push({
       type: 'team_joined',
@@ -164,50 +159,43 @@ router.post('/:id/join', auth, async (req, res, next) => {
 
     await match.save();
 
-    const populated = await Match.findById(match._id)
+    // 6. Notify via Socket
+    const populatedMatch = await Match.findById(match._id)
       .populate('teams.teamId', 'name tag')
       .populate('teams.players', 'username cfHandle cfProfile');
 
-    // Notify via socket
     const io = req.app.get('io');
     if (io) {
       io.to(`match_${match._id}`).emit('team_joined', {
         teamName: team.name,
         teamTag: team.tag,
-        match: populated,
+        match: populatedMatch,
       });
     }
 
-    res.json({ success: true, match: populated });
+    res.json({ success: true, match: populatedMatch });
   } catch (error) {
     next(error);
   }
 });
 
-// @route   POST /api/matches/:id/ready
-// @desc    Toggle ready status
+
 router.post('/:id/ready', auth, async (req, res, next) => {
   try {
     const match = await Match.findById(req.params.id);
-    if (!match) {
-      return res.status(404).json({ success: false, message: 'Match not found' });
-    }
 
+    // 1. Validate Match State
+    if (!match) return res.status(404).json({ success: false, message: 'Match not found' });
     if (match.status !== 'ready' && match.status !== 'waiting') {
       return res.status(400).json({ success: false, message: 'Match is not in ready phase' });
     }
 
-    // Find the user's team
-    const teamIndex = match.teams.findIndex((t) =>
-      t.players.some((p) => p.toString() === req.user._id.toString())
-    );
+    // 2. Find User's Team
+    const teamIndex = match.teams.findIndex(t => t.players.some(p => p.toString() === req.user._id.toString()));
+    if (teamIndex === -1) return res.status(403).json({ success: false, message: 'You are not in this match' });
 
-    if (teamIndex === -1) {
-      return res.status(403).json({ success: false, message: 'You are not in this match' });
-    }
-
+    // 3. Toggle Ready Status
     match.teams[teamIndex].ready = !match.teams[teamIndex].ready;
-
     match.events.push({
       type: 'player_ready',
       data: {
@@ -218,76 +206,60 @@ router.post('/:id/ready', auth, async (req, res, next) => {
       timestamp: new Date(),
     });
 
-    // Check if both teams are ready → start match
-    if (match.teams.length === 2 && match.teams.every((t) => t.ready)) {
+    // 4. Check if Match Should Start
+    const bothTeamsReady = match.teams.length === 2 && match.teams.every(t => t.ready);
+    if (bothTeamsReady) {
       match.status = 'in_progress';
       match.startedAt = new Date();
-      match.events.push({
-        type: 'match_start',
-        data: {},
-        timestamp: new Date(),
-      });
+      match.events.push({ type: 'match_start', data: {}, timestamp: new Date() });
     }
 
     await match.save();
 
-    const populated = await Match.findById(match._id)
+    // 5. Notify via Socket
+    const populatedMatch = await Match.findById(match._id)
       .populate('teams.teamId', 'name tag')
       .populate('teams.players', 'username cfHandle cfProfile');
 
-    // Notify via socket
     const io = req.app.get('io');
     if (io) {
       io.to(`match_${match._id}`).emit('ready_update', {
         teamColor: match.teams[teamIndex].color,
         ready: match.teams[teamIndex].ready,
-        match: populated,
+        match: populatedMatch,
       });
 
-      // If match started, begin polling
+      // Start Codeforces Polling if match started
       if (match.status === 'in_progress') {
         io.to(`match_${match._id}`).emit('match_started', {
           startedAt: match.startedAt,
-          match: populated,
+          match: populatedMatch,
         });
 
-        // Start CF polling
         const poller = req.app.get('cfPoller');
-        if (poller) {
-          poller.startPolling(match._id.toString());
-        }
+        if (poller) poller.startPolling(match._id.toString());
       }
     }
 
-    res.json({ success: true, match: populated });
+    res.json({ success: true, match: populatedMatch });
   } catch (error) {
     next(error);
   }
 });
 
-// @route   POST /api/matches/:id/forfeit
-// @desc    Forfeit match
 router.post('/:id/forfeit', auth, async (req, res, next) => {
   try {
     const match = await Match.findById(req.params.id);
-    if (!match) {
-      return res.status(404).json({ success: false, message: 'Match not found' });
-    }
 
-    if (match.status !== 'in_progress') {
-      return res.status(400).json({ success: false, message: 'Match is not in progress' });
-    }
+    if (!match) return res.status(404).json({ success: false, message: 'Match not found' });
+    if (match.status !== 'in_progress') return res.status(400).json({ success: false, message: 'Match is not in progress' });
 
-    const team = match.teams.find((t) =>
-      t.players.some((p) => p.toString() === req.user._id.toString())
-    );
-
-    if (!team) {
-      return res.status(403).json({ success: false, message: 'You are not in this match' });
-    }
+    const team = match.teams.find(t => t.players.some(p => p.toString() === req.user._id.toString()));
+    if (!team) return res.status(403).json({ success: false, message: 'You are not in this match' });
 
     const winnerColor = team.color === 'red' ? 'blue' : 'red';
 
+    // 1. Update Match State to Completed
     match.status = 'completed';
     match.winner = winnerColor;
     match.winCondition = 'forfeit';
@@ -300,6 +272,7 @@ router.post('/:id/forfeit', auth, async (req, res, next) => {
 
     await match.save();
 
+    // 2. Notify via Socket
     const io = req.app.get('io');
     if (io) {
       io.to(`match_${match._id}`).emit('match_ended', {
@@ -309,11 +282,9 @@ router.post('/:id/forfeit', auth, async (req, res, next) => {
       });
     }
 
-    // Stop polling
+    // 3. Stop Codeforces Polling
     const poller = req.app.get('cfPoller');
-    if (poller) {
-      poller.stopPolling(match._id.toString());
-    }
+    if (poller) poller.stopPolling(match._id.toString());
 
     res.json({ success: true, message: 'Match forfeited' });
   } catch (error) {
@@ -321,15 +292,14 @@ router.post('/:id/forfeit', auth, async (req, res, next) => {
   }
 });
 
-// @route   POST /api/matches/:id/spectate
-// @desc    Join as spectator
+
 router.post('/:id/spectate', auth, async (req, res, next) => {
   try {
     const match = await Match.findById(req.params.id);
-    if (!match) {
-      return res.status(404).json({ success: false, message: 'Match not found' });
-    }
 
+    if (!match) return res.status(404).json({ success: false, message: 'Match not found' });
+
+    // Add to spectators list if not already present
     if (!match.spectators.includes(req.user._id)) {
       match.spectators.push(req.user._id);
       await match.save();

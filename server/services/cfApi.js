@@ -34,12 +34,6 @@ const withRetry = async (fn, maxRetries = 3) => {
 };
 
 const cfApi = {
-  /**
-   * Get user submissions
-   * @param {string} handle - CF handle
-   * @param {number} from - 1-based index
-   * @param {number} count - number of submissions
-   */
   async getUserSubmissions(handle, from = 1, count = 30) {
     return withRetry(() =>
       limiter.schedule(async () => {
@@ -54,10 +48,7 @@ const cfApi = {
     );
   },
 
-  /**
-   * Get user info for one or more handles
-   * @param {string|string[]} handles
-   */
+
   async getUserInfo(handles) {
     const handleStr = Array.isArray(handles) ? handles.join(';') : handles;
     const cacheKey = `cf_user_${handleStr}`;
@@ -80,10 +71,6 @@ const cfApi = {
     );
   },
 
-  /**
-   * Get all problems, optionally filtered by tags
-   * @param {string} tags - semicolon-separated tags
-   */
   async getProblems(tags = '') {
     const cacheKey = `cf_problems_${tags || 'all'}`;
 
@@ -106,12 +93,7 @@ const cfApi = {
     );
   },
 
-  /**
-   * Check if a user has a specific submission (for handle verification)
-   * @param {string} handle
-   * @param {number} contestId
-   * @param {string} problemIndex
-   */
+
   async checkVerificationSubmission(handle, contestId, problemIndex, minTimestampSeconds) {
     const submissions = await this.getUserSubmissions(handle, 1, 50);
     return submissions.find(

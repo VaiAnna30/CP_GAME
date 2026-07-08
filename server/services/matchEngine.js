@@ -1,23 +1,26 @@
 /**
- * Match Engine — Pure game logic for win/draw/tiebreak detection
+ * Match Engine — Pure game logic for Tic-Tac-Toe win/draw/tiebreak detection.
+ * Handles the logic independently of the database or real-time sockets.
  */
 const matchEngine = {
   /**
-   * Check if a team has won (N in a row/column/diagonal)
-   * @param {Array} board - array of cell objects
-   * @param {number} gridSize
-   * @param {string} color - 'red' or 'blue'
-   * @returns {boolean}
+   * Check if a specific team (color) has won the game.
+   * A win is N cells in a continuous row, column, or diagonal.
+   * 
+   * @param {Array} board - Array of cell objects {row, col, claimedBy}
+   * @param {number} gridSize - The N size of the N x N grid
+   * @param {string} color - The team color ('red' or 'blue')
+   * @returns {boolean} True if the team has won
    */
   checkWin(board, gridSize, color) {
     const grid = this._buildGrid(board, gridSize);
 
-    // Check rows
+    // Check all rows for a win
     for (let r = 0; r < gridSize; r++) {
-      if (grid[r].every((cell) => cell === color)) return true;
+      if (grid[r].every(cellColor => cellColor === color)) return true;
     }
 
-    // Check columns
+    // Check all columns for a win
     for (let c = 0; c < gridSize; c++) {
       let colWin = true;
       for (let r = 0; r < gridSize; r++) {
@@ -29,17 +32,17 @@ const matchEngine = {
       if (colWin) return true;
     }
 
-    // Check main diagonal
-    let diagWin = true;
+    // Check main diagonal (top-left to bottom-right)
+    let mainDiagWin = true;
     for (let i = 0; i < gridSize; i++) {
       if (grid[i][i] !== color) {
-        diagWin = false;
+        mainDiagWin = false;
         break;
       }
     }
-    if (diagWin) return true;
+    if (mainDiagWin) return true;
 
-    // Check anti-diagonal
+    // Check anti-diagonal (top-right to bottom-left)
     let antiDiagWin = true;
     for (let i = 0; i < gridSize; i++) {
       if (grid[i][gridSize - 1 - i] !== color) {
@@ -53,27 +56,34 @@ const matchEngine = {
   },
 
   /**
-   * Check if the board is full (draw condition)
+   * Check if all cells on the board have been claimed.
+   * 
+   * @param {Array} board - Array of cell objects
+   * @returns {boolean} True if board is completely filled
    */
   isBoardFull(board) {
-    return board.every((cell) => cell.claimedBy !== null);
+    return board.every(cell => cell.claimedBy !== null);
   },
 
   /**
-   * Get the winning line cells (for highlighting)
-   * Returns array of { row, col } or null if no winner
+   * Get the exact coordinates of the winning line for frontend highlighting.
+   * 
+   * @param {Array} board - Array of cell objects
+   * @param {number} gridSize - Grid dimension
+   * @param {string} color - The winning team color
+   * @returns {Array<{row, col}> | null} Array of coordinates or null if no win
    */
   getWinningLine(board, gridSize, color) {
     const grid = this._buildGrid(board, gridSize);
 
-    // Check rows
+    // Rows
     for (let r = 0; r < gridSize; r++) {
-      if (grid[r].every((cell) => cell === color)) {
+      if (grid[r].every(cell => cell === color)) {
         return Array.from({ length: gridSize }, (_, c) => ({ row: r, col: c }));
       }
     }
 
-    // Check columns
+    // Columns
     for (let c = 0; c < gridSize; c++) {
       let colWin = true;
       for (let r = 0; r < gridSize; r++) {
@@ -87,7 +97,7 @@ const matchEngine = {
       }
     }
 
-    // Check main diagonal
+    // Main Diagonal
     let diagWin = true;
     for (let i = 0; i < gridSize; i++) {
       if (grid[i][i] !== color) {
@@ -99,7 +109,7 @@ const matchEngine = {
       return Array.from({ length: gridSize }, (_, i) => ({ row: i, col: i }));
     }
 
-    // Check anti-diagonal
+    // Anti-Diagonal
     let antiDiagWin = true;
     for (let i = 0; i < gridSize; i++) {
       if (grid[i][gridSize - 1 - i] !== color) {
@@ -115,15 +125,20 @@ const matchEngine = {
   },
 
   /**
-   * Resolve tiebreak when board is full with no line
-   * 1. Most cells claimed wins
-   * 2. If tied, lowest total solve time wins
+   * Resolve a tiebreak when the board is full but no one has a Tic-Tac-Toe line.
+   * Rules:
+   * 1. Team with the most cells claimed wins.
+   * 2. If tied on cells, team with the lowest total solve time wins.
+   * 
+   * @param {Array} board - Array of cell objects
+   * @param {Date} matchStartedAt - Start time of the match
+   * @returns {Object} { winner: 'red'|'blue'|'draw', condition: string }
    */
   resolveTiebreak(board, matchStartedAt) {
-    const redCells = board.filter((c) => c.claimedBy === 'red');
-    const blueCells = board.filter((c) => c.claimedBy === 'blue');
+    const redCells = board.filter(c => c.claimedBy === 'red');
+    const blueCells = board.filter(c => c.claimedBy === 'blue');
 
-    // Most cells
+    // Rule 1: Most cells claimed wins
     if (redCells.length > blueCells.length) {
       return { winner: 'red', condition: 'tiebreak_cells' };
     }
@@ -131,16 +146,17 @@ const matchEngine = {
       return { winner: 'blue', condition: 'tiebreak_cells' };
     }
 
-    // Same number of cells — compare total solve time
+    // Rule 2: Same number of cells — compare cumulative total solve time
     const startTime = new Date(matchStartedAt).getTime();
 
-    const redTotalTime = redCells.reduce((sum, c) => {
-      return sum + (new Date(c.claimTime).getTime() - startTime);
-    }, 0);
+    const calculateTotalTime = (cells) => {
+      return cells.reduce((total, cell) => {
+        return total + (new Date(cell.claimTime).getTime() - startTime);
+      }, 0);
+    };
 
-    const blueTotalTime = blueCells.reduce((sum, c) => {
-      return sum + (new Date(c.claimTime).getTime() - startTime);
-    }, 0);
+    const redTotalTime = calculateTotalTime(redCells);
+    const blueTotalTime = calculateTotalTime(blueCells);
 
     if (redTotalTime < blueTotalTime) {
       return { winner: 'red', condition: 'tiebreak_time' };
@@ -149,14 +165,20 @@ const matchEngine = {
       return { winner: 'blue', condition: 'tiebreak_time' };
     }
 
+    // Absolutely equal performance (very rare)
     return { winner: 'draw', condition: 'tiebreak_time' };
   },
 
   /**
-   * Determine match result after a cell claim
+   * Determine the current status of the match (ongoing, won, or drawn).
+   * 
+   * @param {Array} board - Array of cell objects
+   * @param {number} gridSize - Grid dimension
+   * @param {Date} matchStartedAt - Start time of the match
+   * @returns {Object} Match evaluation result
    */
   evaluateMatch(board, gridSize, matchStartedAt) {
-    // Check if either team won by line
+    // 1. Check if 'red' has a winning line
     if (this.checkWin(board, gridSize, 'red')) {
       return {
         finished: true,
@@ -165,6 +187,8 @@ const matchEngine = {
         winningLine: this.getWinningLine(board, gridSize, 'red'),
       };
     }
+
+    // 2. Check if 'blue' has a winning line
     if (this.checkWin(board, gridSize, 'blue')) {
       return {
         finished: true,
@@ -174,7 +198,7 @@ const matchEngine = {
       };
     }
 
-    // Check if board is full
+    // 3. If no line, check if the board is completely full (trigger tiebreaker)
     if (this.isBoardFull(board)) {
       const tiebreak = this.resolveTiebreak(board, matchStartedAt);
       return {
@@ -185,19 +209,17 @@ const matchEngine = {
       };
     }
 
+    // Match is still ongoing
     return { finished: false, winner: null, condition: null, winningLine: null };
   },
 
-  /**
-   * Build a 2D grid from flat board array
-   */
   _buildGrid(board, gridSize) {
     const grid = Array.from({ length: gridSize }, () => Array(gridSize).fill(null));
     for (const cell of board) {
       grid[cell.row][cell.col] = cell.claimedBy;
     }
     return grid;
-  },
+  }
 };
 
 module.exports = matchEngine;
